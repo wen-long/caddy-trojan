@@ -13,9 +13,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/imgk/caddy-trojan/trojan"
-	"github.com/imgk/caddy-trojan/utils"
-	"github.com/imgk/caddy-trojan/websocket"
+	"github.com/wen-long/caddy-trojan/trojan"
+	"github.com/wen-long/caddy-trojan/utils"
+	"github.com/wen-long/caddy-trojan/websocket"
 )
 
 func init() {

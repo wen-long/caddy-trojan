@@ -10,8 +10,8 @@ import (
 	"github.com/caddyserver/certmagic"
 	"go.uber.org/zap"
 
-	"github.com/imgk/caddy-trojan/trojan"
-	"github.com/imgk/caddy-trojan/utils"
+	"github.com/wen-long/caddy-trojan/trojan"
+	"github.com/wen-long/caddy-trojan/utils"
 )
 
 // Traffic is ...

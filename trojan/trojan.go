@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/imgk/caddy-trojan/socks"
-	"github.com/imgk/caddy-trojan/utils"
+	"github.com/wen-long/caddy-trojan/socks"
+	"github.com/wen-long/caddy-trojan/utils"
 )
 
 // HeaderLen is ...
@@ -53,11 +53,7 @@ func Handle(r io.Reader, w io.Writer) (int64, int64, error) {
 
 	switch b[0] {
 	case CmdConnect:
-		tgt, err := socks.ResolveTCPAddr(addr)
-		if err != nil {
-			return 0, 0, fmt.Errorf("resolve tcp addr error: %w", err)
-		}
-		nr, nw, err := HandleTCP(r, w, tgt)
+		nr, nw, err := HandleTCP(r, w, addr.String())
 		if err != nil {
 			return nr, nw, fmt.Errorf("handle tcp error: %w", err)
 		}
