@@ -32,8 +32,6 @@ type Upstream struct {
 	Logger *zap.Logger
 }
 
-var exampleUserKeys = []string{"495b17608d5858b346269f1c8186caef1c337831dc062cda21187d71"}
-
 // NewUpstream is ...
 func NewUpstream(st certmagic.Storage, lg *zap.Logger) *Upstream {
 	return &Upstream{
@@ -110,28 +108,17 @@ func (u *Upstream) Range(fn func(k string, up, down int64)) {
 	return
 }
 
-// MayPrefix is ...
-func (u *Upstream) MayPrefix(k string) (maybe bool, matched bool) {
-	for _, key := range exampleUserKeys {
-		if strings.HasPrefix(key, k) {
-			if key == k {
-				return true, true
-			} else {
-				return true, false
-			}
-		}
-	}
-	return false, false
-}
-
 // Validate is ...
 func (u *Upstream) Validate(k string) bool {
-	for _, key := range exampleUserKeys {
-		if key == k {
-			return true
-		}
+	// base64.StdEncoding.EncodeToString(hex.Encode(sha256.Sum224([]byte("Test1234"))))
+	const AuthLen = 76
+	if len(k) == AuthLen {
+		k = u.Prefix + k
+	} else {
+		k = u.Prefix + base64.StdEncoding.EncodeToString(utils.StringToByteSlice(k))
 	}
-	return false
+	fmt.Printf("Validate key: %s\n", k)
+	return u.Storage.Exists(context.Background(), k)
 }
 
 // Consume is ...

@@ -137,11 +137,9 @@ func (l *Listener) loop() {
 		}
 
 		go func(c net.Conn, lg *zap.Logger, up *Upstream) {
-			b := make([]byte, trojan.HeaderLen)
-			readCount := 0
-			for {
-				n, err := c.Read(b[readCount:])
-				if err != nil {
+			b := make([]byte, trojan.HeaderLen+2)
+			for n := 0; n < trojan.HeaderLen+2; n += 1 {
+				if _, err := io.ReadFull(c, b[n:n+1]); err != nil {
 					if errors.Is(err, io.EOF) {
 						lg.Error(fmt.Sprintf("read prefix error: read tcp %v -> %v: read: %v", c.RemoteAddr(), c.LocalAddr(), err))
 					} else {
@@ -150,35 +148,27 @@ func (l *Listener) loop() {
 					c.Close()
 					return
 				}
-				readCount += n
-
-				maybe, matched := up.MayPrefix(utils.ByteSliceToString(b[:readCount]))
-				lg.Info(fmt.Sprintf("MayPrefix of readCount %v for : %s result %v, %v",
-					readCount, utils.ByteSliceToString(b[:readCount]), maybe, matched))
-				if !maybe {
+				if n > 1 && b[n-1] == 0x0d && b[n] == 0x0a && n < trojan.HeaderLen+1 {
 					select {
 					case <-l.closed:
 						c.Close()
 					default:
-						l.conns <- utils.RewindConn(c, b[:readCount])
+						l.conns <- utils.RewindConn(c, b[:n+1])
 					}
 					return
-				} else {
-					if matched {
-						break
-					}
 				}
 			}
 
-			//guard
-			if readCount != trojan.HeaderLen {
-				panic("readCount != trojan.HeaderLen")
+			// check the net.Conn
+			if ok := up.Validate(utils.ByteSliceToString(b[:trojan.HeaderLen])); !ok {
+				select {
+				case <-l.closed:
+					c.Close()
+				default:
+					l.conns <- utils.RewindConn(c, b)
+				}
+				return
 			}
-
-			// WE ARE SAFE
-			crlf := make([]byte, 2)
-			_, _ = io.ReadFull(c, crlf)
-
 			defer c.Close()
 			if l.Verbose {
 				lg.Info(fmt.Sprintf("handle trojan net.Conn from %v", c.RemoteAddr()))
