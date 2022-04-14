@@ -35,7 +35,7 @@ type Upstream struct {
 // NewUpstream is ...
 func NewUpstream(st certmagic.Storage, lg *zap.Logger) *Upstream {
 	return &Upstream{
-		Prefix:  "trojan/",
+		Prefix:  "",
 		Storage: st,
 		Logger:  lg,
 	}
@@ -117,6 +117,7 @@ func (u *Upstream) Validate(k string) bool {
 	} else {
 		k = u.Prefix + base64.StdEncoding.EncodeToString(utils.StringToByteSlice(k))
 	}
+	fmt.Printf("Validate key: %s\n", k)
 	return u.Storage.Exists(context.Background(), k)
 }
 

@@ -62,6 +62,7 @@ func (m *Handler) Provision(ctx caddy.Context) error {
 
 // ServeHTTP implements caddyhttp.MiddlewareHandler.
 func (m *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
+	fmt.Printf("%v", r.Header)
 	// trojan over http2/http3
 	// use CONNECT method, put trojan header as Proxy-Authorization
 	if m.Connect && r.Method == http.MethodConnect {
@@ -69,11 +70,11 @@ func (m *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		const AuthLen = 76
 
 		// handle trojan over http2/http3
-		if r.ProtoMajor == 1 {
-			return next.ServeHTTP(w, r)
-		}
+		//if r.ProtoMajor == 1 {
+		//	return next.ServeHTTP(w, r)
+		//}
 		auth := strings.TrimPrefix(r.Header.Get("Proxy-Authorization"), "Basic ")
-		if len(auth) != AuthLen {
+		if len(auth) <= AuthLen {
 			return next.ServeHTTP(w, r)
 		}
 		if ok := m.Upstream.Validate(auth); !ok {
