@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -10,29 +11,34 @@ import (
 // rawConn is ...
 type rawConn struct {
 	net.Conn
-	Reader bytes.Reader
+	reader     *bufio.Reader
+	lineReader bytes.Reader
 }
 
 // NewRawConn is ...
-func NewRawConn(conn net.Conn, buf []byte) net.Conn {
+func NewRawConn(conn net.Conn, reader *bufio.Reader, line string) net.Conn {
 	c := &rawConn{
-		Conn: conn,
+		Conn:   conn,
+		reader: reader,
 	}
-	c.Reader.Reset(buf)
+	c.lineReader.Reset([]byte(line))
+
 	return c
 }
 
 // Read is ...
 func (c *rawConn) Read(b []byte) (int, error) {
-	if c.Reader.Size() == 0 {
-		return c.Conn.Read(b)
+	if c.lineReader.Size() == 0 {
+		return c.reader.Read(b)
+	} else {
+		n, err := c.lineReader.Read(b)
+		if errors.Is(err, io.EOF) {
+			c.lineReader.Reset([]byte{})
+			return n, nil
+		} else {
+			return n, err
+		}
 	}
-	n, err := c.Reader.Read(b)
-	if errors.Is(err, io.EOF) {
-		c.Reader.Reset([]byte{})
-		return n, nil
-	}
-	return n, err
 }
 
 // CloseWrite is ...

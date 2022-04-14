@@ -1,11 +1,12 @@
 package trojan
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
 	"github.com/caddyserver/caddy/v2"
 	"io"
 	"net"
+	"net/textproto"
 	"os"
 
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -137,48 +138,37 @@ func (l *Listener) loop() {
 		}
 
 		go func(c net.Conn, lg *zap.Logger, up *Upstream) {
-			b := make([]byte, trojan.HeaderLen+2)
-			for n := 0; n < trojan.HeaderLen+2; n += 1 {
-				if _, err := io.ReadFull(c, b[n:n+1]); err != nil {
-					if errors.Is(err, io.EOF) {
-						lg.Error(fmt.Sprintf("read prefix error: read tcp %v -> %v: read: %v", c.RemoteAddr(), c.LocalAddr(), err))
-					} else {
-						lg.Error(fmt.Sprintf("read prefix error: %v", err))
-					}
-					c.Close()
-					return
-				}
-				if n > 1 && b[n-1] == 0x0d && b[n] == 0x0a && n < trojan.HeaderLen+1 {
-					select {
-					case <-l.closed:
-						c.Close()
-					default:
-						l.conns <- utils.RewindConn(c, b[:n+1])
-					}
-					return
-				}
-			}
-
-			// check the net.Conn
-			if ok := up.Validate(utils.ByteSliceToString(b[:trojan.HeaderLen])); !ok {
-				select {
-				case <-l.closed:
-					c.Close()
-				default:
-					l.conns <- utils.RewindConn(c, b)
-				}
+			// behave like a normal http server made by golang
+			// https://github.com/golang/go/blob/19309779ac5e2f5a2fd3cbb34421dafb2855ac21/src/net/http/request.go#L1037
+			r := bufio.NewReaderSize(c, trojan.HeaderLen)
+			reader := textproto.NewReader(r)
+			line, err := reader.ReadLine()
+			if err != nil {
+				lg.Error(fmt.Sprintf("textproto ReadLine error: %v", err))
+				c.Close()
 				return
 			}
+
+			if !validateLine(line, up) {
+				lg.Error(fmt.Sprintf("invalid header: %s", line))
+				l.conns <- utils.RewindConn(c, r, line+"\r\n")
+				return
+			}
+
 			defer c.Close()
 			if l.Verbose {
 				lg.Info(fmt.Sprintf("handle trojan net.Conn from %v", c.RemoteAddr()))
 			}
 
-			nr, nw, err := trojan.Handle(io.Reader(c), io.Writer(c))
+			nr, nw, err := trojan.Handle(r, io.Writer(c))
 			if err != nil {
 				lg.Error(fmt.Sprintf("handle net.Conn error: %v", err))
 			}
-			up.Consume(utils.ByteSliceToString(b[:trojan.HeaderLen]), nr, nw)
+			up.Consume(line, nr, nw)
 		}(conn, l.Logger, l.Upstream)
 	}
+}
+
+func validateLine(line string, up *Upstream) bool {
+	return len(line) == trojan.HeaderLen && up.Validate(line[:trojan.HeaderLen])
 }
