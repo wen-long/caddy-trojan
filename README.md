@@ -2,72 +2,94 @@
 
 ## Build with xcaddy
 ```
-$ xcaddy build --with github.com/imgk/caddy-trojan
+$ xcaddy build --with github.com/wen-long/caddy-trojan
 ```
 
 ##  Config (JSON)
 ```jsonc
 {
-    "apps": {
-        "http": {
-            "servers": {
-                "": {
-                    "listener_wrappers": [{
-                        "wrapper": "trojan"
-                    }],
-                    // set true to enable http2
-                    "allow_h2c": true,
-                    "routes": [
-                        {
-                            "handle": [
-                                {
-                                    "handler": "trojan",
-                                    "users": ["test1234", "word1234"],
-				    "connect_method": false,
-                                    "websocket": false
-                                }
-                            ]
-                        }
-                    ]
-                }
+  "apps": {
+    "http": {
+      "http_port": 1999,
+      "servers": {
+        "srv0": {
+          "listen": [
+            ":443"
+          ],
+          "listener_wrappers": [
+            {
+              "users": [
+                "username1",
+                "username2"
+              ],
+              "wrapper": "trojan"
             }
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "upstreams": [
+                            {
+                              "dial": "127.0.0.1:80"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "tls_connection_policies": [
+            {
+              "alpn": [
+                "http/1.1"
+              ]
+            }
+          ]
         }
+      }
+    },
+    "tls": {
+      "certificates": {
+        "automate": [
+          "your.domain.com"
+        ]
+      }
     }
+  }
 }
 ```
 ##  Config (Caddyfile)
 
 ```
 {
-	servers {
-		listener_wrappers {
-			trojan
-		}
-		protocol {
-			allow_h2c
-			experimental_http3
-		}
-	}
+   http_port 1999
+   servers {
+      listener_wrappers {
+         trojan {
+             user username1
+             user username2
+         }
+      }
+   }
 }
-:443, example.com {
-	tls email@example.com
-	route {
-		trojan {
-			user test1234
-			user word1234 user1234
-			connect_method
-			websocket
-		}
-		file_server {
-			root /var/www/html
-		}
-	}
+
+:443, your.domain.com {
+   tls {
+      alpn http/1.1
+   }
+   route {
+      reverse_proxy 127.0.0.1:80
+   }
 }
 ```
 
-## Manage Users
-
-1. Add user.
-```
-curl -X POST -H "Content-Type: application/json" -d '{"password": "test1234"}' http://localhost:2019/trojan/users/add
-```
