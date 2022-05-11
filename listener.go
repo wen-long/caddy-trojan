@@ -3,6 +3,7 @@ package trojan
 import (
 	"bufio"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"github.com/caddyserver/caddy/v2"
@@ -191,6 +192,16 @@ func (l *Listener) loop() {
 		}
 
 		go func(c net.Conn, lg *zap.Logger) {
+
+			// h2 is difficult to re-serve like http1.1 in TLS, so we use Handshake first and give back tls.Conn ASAP
+			if tlsConn, ok := conn.(*tls.Conn); ok {
+				_ = tlsConn.Handshake()
+				if tlsConn.ConnectionState().NegotiatedProtocol == "h2" {
+					l.conns <- c
+					return
+				}
+			}
+
 			// behave like a normal http server made by golang
 			// https://github.com/golang/go/blob/19309779ac5e2f5a2fd3cbb34421dafb2855ac21/src/net/http/request.go#L1037
 			r := bufio.NewReaderSize(c, trojan.HeaderLen)
